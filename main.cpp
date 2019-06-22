@@ -31,6 +31,79 @@ typedef struct
     int w;              //边的权值
 }Edge;
 
+//检查图文件是否存在或者是否为空
+//---------------------------------------------------------------------
+bool check_nullfile(char const *fileName)
+{
+    FILE *fp = fopen(fileName, "rb");
+    //file not exist
+    if (!fp) {
+        printf("初始化文件不存在！程序将为您新建一个.\n");
+        FILE *fp = fopen(fileName, "wb");
+        fclose(fp);
+        return false;
+    }
+    //file already exist
+    else {
+        char temp;
+        
+        int res = fscanf(fp, "%c", &temp);
+        fclose(fp);
+        if (res <= 0)
+            return false;
+        else
+            return true;
+    }
+}
+
+//在未到达文件尾的情况下，从文件中读取图的信息
+//---------------------------------------------------------------------
+void infoInit(char const *fileName,char str[MaxSize])
+{
+    FILE *fp;
+    int i=0;
+    for (int j=0; j<MaxSize; j++) {
+        str[j]='\0';
+    }
+    
+    bool res = check_nullfile(fileName);
+    if ((fp = fopen(fileName, "rb"))==NULL) {
+        if ((fp=fopen(fileName, "wb"))==NULL) {
+            printf("Tips: 不能创建公园景点信息文件\n");
+        }
+    }
+    else{
+        while (res && !feof(fp)) {
+            fscanf(fp, "%c",&str[i]);
+            i++;
+        }
+    }
+    fclose(fp);
+}
+
+//将公园景点信息存储到文件中
+//---------------------------------------------------------------------
+/*void infoFlush(char const *fileName,MatGraph *b)
+{
+    MatGraph *p=b;
+    FILE *fp;
+    if ((fp = fopen(fileName, "wb"))==NULL) {
+        printf("Tips: 不能打开公园景点信息文件\n");
+        return;
+    }
+//    思路：直接写入两个景点名字，距离
+//    读取时按照链表读，二维矩阵？扫描直接读
+    for (int j=0; j<b->n; j++) {
+        for (int i=0; i<b->n; i++) {
+//            fprintf(fp, "%c",*p);
+        }
+    }
+//    while (*p!=NULL) {
+//        p++;
+//    }
+    fclose(fp);
+}
+*/
 //读取字符串函数
 int read_line(char str[],int n)
 {
@@ -71,28 +144,11 @@ void InsertSort(Edge R[],int n)
     }
 }
 
-void disGraph(MatGraph g)
-{
-    int i,j;
-    printf("输出图:\n");
-    for (i=0;i<g.n;i++)
-    {
-        for (j=0;j<g.n;j++)
-            if (g.edges[i][j]!=INF)
-                printf("%4d",g.edges[i][j]);
-            else
-                printf("%4s","∞");
-        printf("\n");
-    }
-
-}
-
 void inputGraph(MatGraph &g)
 {
     int i,j,m=0,p=0;
     int dis;
     int loop=0;
-    char choice;
 
     do {
         loop++;
@@ -150,56 +206,126 @@ void inputGraph(MatGraph &g)
             }
         }
         m=0;p=0;
-        
-        printf("是否仍存在直接相邻的景点？(Y/N) ");
-        getchar();
-        scanf("%c",&choice);
         printf("\n");
         
-    } while (choice == 'Y' ||choice == 'y');
+    } while (loop < g.e);
     
 }
 
-//Kruskal Algorithm
-void Kruskal(MatGraph g)
+void disGraph(MatGraph g)
 {
-    int k,i,j;
-    int sn1,sn2,u1,v1;
-    k=0;
-    int vset[MaxV];
-    Edge E[MaxV];
-    for (i=0; i<g.n; i++) {
-        for (j=0; j<g.n; j++) {
-            if (g.edges[i][j]!=0 && g.edges[i][j]!=INF) {       //由g产生边集E
-                E[k].u=i;
-                E[k].v=j;
-                E[k].w=g.edges[i][j];
-                k++;
+    int i,j;
+    printf("输出图:\n");
+    for (int k=0; k<g.n; k++) {
+        printf("\t%s",g.vexs[k].name);
+    }
+    printf("\n");
+    for (i=0;i<g.n;i++)
+    {
+        printf("%s",g.vexs[i].name);
+        for (j=0;j<g.n;j++)
+            if (g.edges[i][j]!=INF)
+                printf("\t%d",g.edges[i][j]);
+            else
+                printf("\t%s","∞");
+        printf("\n");
+    }
+    
+}
+
+void disPath(MatGraph g,int dist[],int path[],int S[],int m,int p)
+//输出顶点出发的所有最短路径
+{
+    int j,k;
+    int apath[MaxV],d;
+    
+    if (S[p]==1&&p!=m) {
+        printf("从景点%s到景点%s的最短路径长度为：%d\t路径为: ",g.vexs[m].name,g.vexs[p].name,dist[p]);
+        d=0;apath[d]=p;
+        k=path[p];
+        if (k==-1) {
+            printf("无路径\n");
+        }
+        else
+        {
+            while (k!=m) {
+                d++;
+                apath[d]=k;
+                k=path[k];
             }
+            d++;
+            apath[d]=m;
+            printf("%s",g.vexs[apath[d]].name);
+            for (j=d-1; j>=0; j--) {
+                printf(",%s",g.vexs[apath[j]].name);
+            }
+            printf("\n");
         }
     }
-    InsertSort(E, k);
-    for (i=0; i<g.n; i++) {
-        vset[i]=i;
+}
+
+void Dijkstra(MatGraph g)
+{
+    int dist[MaxV],path[MaxV];
+    int S[MaxV];                                    //S[i]=1表示顶点i在S中,S[i]=0表示顶点i在U中
+    int MINdis,i,j,u = 0;
+    int m,p;
+    char start[MaxSize],end[MaxSize];
+    
+    printf("请输入起始景点名称: ");
+    read_line(start, MaxSize);
+    printf("请输入终止景点名称: ");
+    read_line(end, MaxSize);
+    
+    //查找两者对应的顶点
+    for (m=0; m<g.n; m++) {
+        if(strcmp(start, g.vexs[m].name)==0)
+            break;
     }
-    k=1;
-    j=0;
-    while (k<g.n) {
-        u1=E[j].u;              //取一个边的两个顶点
-        v1=E[j].v;
-        sn1=vset[u1];
-        sn2=vset[v1];
-        if (sn1!=sn2) {        //两顶点属于不同的集合
-            printf("(%d,%d):%d\n",u1,v1,E[j].w);    //输出最小生成树的一条边
-            k++;
-            for (i=0; i<g.n; i++) {                 //两个集合统一编号
-                if (vset[i]==sn2) {
-                    vset[i]=sn1;
+    if (m==g.n) {
+        printf("Failed:没找到对应的起始景点\n");
+        return;
+    }
+    
+    for (p=0; p<g.n; p++) {
+        if (strcmp(end, g.vexs[p].name)==0) {
+            break;
+        }
+    }
+    if (p==g.n) {
+        printf("Failed:没找到对应的终止景点\n");
+    }
+    
+    for (i=0; i<g.n; i++) {
+        dist[i]=g.edges[m][i];                      //距离初始化
+        S[i]=0;
+        if (g.edges[m][i]<=INF) {                   //路径初始化
+            path[i]=m;
+        }
+        else
+            path[i]=-1;
+    }
+    S[m]=1;                                        //源点编号v放入S中
+    path[m]=0;
+    for (i=0; i<g.n-1; i++) {
+        MINdis=INF;
+        for (j=0; j<g.n; j++) {
+            if (S[j]==0&&dist[j]<MINdis) {
+                u=j;
+                MINdis=dist[j];
+            }
+        }
+        S[u]=1;
+        for (j=0; j<g.n; j++) {
+            if (S[j]==0) {
+                if (g.edges[u][j]<INF && dist[u]+g.edges[u][j]<dist[j]) {
+                    dist[j]=dist[u]+g.edges[u][j];
+                    path[j]=u;
                 }
             }
         }
-        j++;                //扫描下一条边
     }
+    disPath(g, dist, path, S, m, p);
 }
 
 void disAllShort(MatGraph g,int A[][MaxV],int path[][MaxV])
@@ -209,7 +335,7 @@ void disAllShort(MatGraph g,int A[][MaxV],int path[][MaxV])
     for (i=0; i<g.n; i++) {
         for (j=0; j<g.n; j++) {
             if (A[i][j]!=INF && i!=j) {
-                printf("从%c到%c的路径为: ",i,j);
+                printf("从%s到%s的路径为: ",g.vexs[i].name,g.vexs[j].name);
                 k=path[i][j];
                 d=0;apath[d]=j;
                 while (k!=-1 && k!=i) {
@@ -217,9 +343,9 @@ void disAllShort(MatGraph g,int A[][MaxV],int path[][MaxV])
                     k=path[i][k];
                 }
                 d++;apath[d]=i;
-                printf("%d",apath[d]);
+                printf("%s",g.vexs[apath[d]].name);
                 for (s=d-1; s>=0; s--) {
-                    printf(",%c",apath[s]);
+                    printf(",%s",g.vexs[apath[s]].name);
                 }
                 printf("\t路径长度: %d\n",A[i][j]);
             }
@@ -268,7 +394,11 @@ int main(int argc, const char * argv[]) {
     //初始化图
     for (i=0; i<g.n; i++) {
         for (j=0; j<g.n; j++) {
-            g.edges[i][j]=INF;
+            if (i==j) {
+                g.edges[i][j]=0;
+            }
+            else
+                g.edges[i][j]=INF;
         }
     }
     
@@ -281,12 +411,16 @@ int main(int argc, const char * argv[]) {
     //输出图
     inputGraph(g);
     disGraph(g);
-    
-    printf("\nKruskal: \n");
-    Kruskal(g);
-    printf("\nFloyd: \n");
+    printf("\n");
+
+//    Dijkstra(g);
+//    printf("\n");
+//    printf("\nFloyd: \n");
     Floyd(g);
     
     return 0;
    
 }
+
+//将最短路径上的各旅游景点及每段路径长度写入磁盘文件AllPath.dat      借助disAllShort()?
+//从文件中读取所有旅游景点之间的最短路径信息，到内存链表中管理
