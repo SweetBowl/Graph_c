@@ -4,9 +4,6 @@
 //
 //  Created by 赵旭 on 2019/6/8.
 //  Copyright © 2019 Zhaox. All rights reserved.
-//
-
-//邻接矩阵转化成邻接表存储，然后读入文件？
 
 #include <iostream>
 
@@ -44,15 +41,9 @@ typedef struct ANode
     int length;
 }ArcNode;               //边结点类型
 
-typedef struct VNode
-{
-    char name[MaxSize];
-    ArcNode *firstarc;
-}VNode;
-
 typedef struct
 {
-    VNode adjlist[MaxV];        //邻接表头节点数组
+    ArcNode adjlist[MaxV];        //邻接表头节点数组
     int n,e;
 }AdjGraph;
 
@@ -67,7 +58,7 @@ void MatToList(MatGraph g,int A[][MaxV],AdjGraph *&G)
         for (j=0; j<g.n; j++) {
             if (A[i][j]!=INF && i!=j)       //顶点i和j之间存在最短路径
             {
-                G->adjlist[numList].firstarc=NULL;                    //头结点信息
+                G->adjlist[numList].nextarc=NULL;                    //头结点信息
                 for (int cl=0; cl<MaxSize; cl++) {
                     G->adjlist[numList].name[cl]='\0';
                 }
@@ -83,7 +74,7 @@ void MatToList(MatGraph g,int A[][MaxV],AdjGraph *&G)
                 }
                 d++;
                 apath[d]=i;
-
+                
                 p=(ArcNode *)malloc(sizeof(ArcNode));
                 p->adjvex=j;
                 p->length=A[i][apath[d-1]];
@@ -91,10 +82,10 @@ void MatToList(MatGraph g,int A[][MaxV],AdjGraph *&G)
                     p->name[cl]='\0';
                 }
                 strcpy(p->name, g.vexs[apath[d-1]].name);
- 
-                G->adjlist[numList].firstarc=p;
+                
+                G->adjlist[numList].nextarc=p;
                 tmp=p;
- 
+                
                 for (s=d-2; s>=0; s--) {                            //尾插法添加 其它 中间顶点信息
                     p=(ArcNode *)malloc(sizeof(ArcNode));
                     p->adjvex=j;
@@ -142,26 +133,43 @@ bool check_nullfile(char const *fileName)
 
 //在未到达文件尾的情况下，从文件中读取图的信息
 //---------------------------------------------------------------------
-void infoInit(char const *fileName,char str[MaxSize])
+void infoInit(char const *fileName,AdjGraph *&G)
 {
     FILE *fp;
-    int i=0;
-    for (int j=0; j<MaxSize; j++) {
-        str[j]='\0';
-    }
+    int m = 0;
+    
+    G=(AdjGraph *)malloc(sizeof(AdjGraph));
     
     bool res = check_nullfile(fileName);
     if ((fp = fopen(fileName, "rb"))==NULL) {
         if ((fp=fopen(fileName, "wb"))==NULL) {
-            printf("Tips: 不能创建公园景点信息文件\n");
+            printf("Tips: 不能读取公园景点信息文件\n");
         }
     }
     else{
         while (res && !feof(fp)) {
-            fscanf(fp, "%c",&str[i]);
-            i++;
+            
+            for (int cl=0; cl<MaxSize; cl++)
+                G->adjlist[m].name[cl]='\0';
+            
+            fscanf(fp, "%s",G->adjlist[m].name);
+            
+            ArcNode *h=G->adjlist[m].nextarc;
+            
+            h=(ArcNode*)malloc(sizeof(ArcNode));
+            
+            for (int cl=0; cl<MaxSize; cl++)
+                h->name[cl]='\0';
+            
+            fscanf(fp,"\t%s", h->name);
+            fscanf(fp, "\t%d",&(h->length));
+            
+            h=h->nextarc;
+            
+            m++;
         }
     }
+    
     fclose(fp);
 }
 
@@ -178,7 +186,7 @@ void infoFlush(char const *fileName,AdjGraph *G)
         return;
     }
     for (m=0; m<numList-1; m++) {
-        ArcNode *h=G->adjlist[m].firstarc;
+        ArcNode *h=G->adjlist[m].nextarc;
         fprintf(fp,"%s\t",p->adjlist[m].name);
         while (h->nextarc!=NULL) {
             fprintf(fp, "%s\t",h->name);
@@ -192,7 +200,7 @@ void infoFlush(char const *fileName,AdjGraph *G)
         savecount++;
     }
     
-    ArcNode *h=G->adjlist[m].firstarc;
+    ArcNode *h=G->adjlist[m].nextarc;
     fprintf(fp,"%s\t",p->adjlist[m].name);
     while (h->nextarc!=NULL) {
         fprintf(fp, "%s\t",h->name);
@@ -204,7 +212,7 @@ void infoFlush(char const *fileName,AdjGraph *G)
     fprintf(fp, "%d",h->length);
     h=h->nextarc;
     savecount++;
-
+    
     fclose(fp);
     if (savecount>0) {
         printf("景点路径信息已存入文件中\n");
@@ -258,7 +266,7 @@ void inputGraph(MatGraph &g)
     int i,j,m=0,p=0;
     int dis;
     int loop=0;
-
+    
     do {
         loop++;
         printf("第%d次循环\n",loop);
@@ -462,22 +470,7 @@ void disAllShort(MatGraph g,int A[][MaxV],int path[][MaxV])
         }
     }
 }
-/*
-int visited[MaxV]={0};
-void DFS(AdjGraph *G,int v)
-{
-    ArcNode *p;
-    visited[v]=1;
-    printf("%d",v);
-    p=G->adjlist[v].firstarc;
-    while (p!=NULL) {
-        if (visited[p->adjvex]==0) {
-            DFS(G, p->adjvex);
-        }
-        p=p->nextarc;
-    }
-}
-*/
+
 //Floyd Algorithm
 void Floyd(MatGraph g)
 {
@@ -507,11 +500,11 @@ void Floyd(MatGraph g)
 }
 
 int main(int argc, const char * argv[]) {
-
+    
     MatGraph g;
     int i,j;
-    AdjGraph *G;
-    
+    AdjGraph *G,*P;
+    int choice;
     printf("请输入景点总个数(至多50个):");
     scanf("%d",&g.n);
     printf("请输入总的边数:");
@@ -533,22 +526,43 @@ int main(int argc, const char * argv[]) {
         strcpy(g.vexs[i].name,"\0");
         
     }
-    //输出图
+    //输入与输出图
     inputGraph(g);
+    printf("图已建立，如下：\n");
     disGraph(g);
     printf("\n");
-
-//    Dijkstra(g);
-//    printf("\n");
-//    printf("\nFloyd: \n");
-    Floyd(g);
-    MatToList(g, A, G);
-//    DFS(G, 0);
-    printf("\n");
-    infoFlush("AllPath.dat", G);
+    while (1) {
+        printf("\n");
+        printf("********************公园景点路径********************\n");
+        printf("1.查询两个景点之间的最短路径\n");
+        printf("2.任意两个景点之间的最短路径\n");
+        printf("3.将最短路径保存到 AllPath.dat文件中\n");
+        printf("4.从文件中读取，并查询两个景点之间的最短路径\n");
+        printf("\n");
+        printf("请输入你要进行的操作:");
+        scanf("%d",&choice);
+        switch (choice) {
+            case 1:
+                Dijkstra(g);
+                break;
+            case 2:
+                Floyd(g);
+                break;
+            case 3:
+                Floyd(g);
+                MatToList(g, A, G);
+                infoFlush("AllPath.dat", G);
+                printf("已存入到文件中\n");
+                break;
+            case 4:
+                infoInit("AllPath.dat", P);
+                printf("已读取到内存链表中\n");
+                Dijkstra(g);
+                break;
+            default:
+                printf("您已退出系统\n");
+                return 0;
+        }
+    }
     return 0;
-   
 }
-
-//将最短路径上的各旅游景点及每段路径长度写入磁盘文件AllPath.dat      借助disAllShort()?
-//从文件中读取所有旅游景点之间的最短路径信息，到内存链表中管理
