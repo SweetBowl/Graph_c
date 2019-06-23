@@ -6,11 +6,16 @@
 //  Copyright © 2019 Zhaox. All rights reserved.
 //
 
+//邻接矩阵转化成邻接表存储，然后读入文件？
+
 #include <iostream>
 
 #define MaxV 52
 #define MaxSize 20
 #define INF 32767
+
+int A[MaxV][MaxV],path[MaxV][MaxV];
+int numList=0;
 
 typedef struct
 {
@@ -30,6 +35,85 @@ typedef struct
     int v;              //边的终止顶点
     int w;              //边的权值
 }Edge;
+
+typedef struct ANode
+{
+    int adjvex;         //该边邻接点编号
+    struct ANode *nextarc;
+    char name[MaxSize];
+    int length;
+}ArcNode;               //边结点类型
+
+typedef struct VNode
+{
+    char name[MaxSize];
+    ArcNode *firstarc;
+}VNode;
+
+typedef struct
+{
+    VNode adjlist[MaxV];        //邻接表头节点数组
+    int n,e;
+}AdjGraph;
+
+//将最短路径邻接矩阵转换成邻接表G
+void MatToList(MatGraph g,int A[][MaxV],AdjGraph *&G)
+{
+    int i,j,k,s;
+    int apath[MaxV],d;
+    ArcNode *p,*tmp;
+    G =(AdjGraph *)malloc(sizeof(AdjGraph));
+    for (i=0; i<g.n; i++) {
+        for (j=0; j<g.n; j++) {
+            if (A[i][j]!=INF && i!=j)       //顶点i和j之间存在最短路径
+            {
+                G->adjlist[numList].firstarc=NULL;                    //头结点信息
+                for (int cl=0; cl<MaxSize; cl++) {
+                    G->adjlist[numList].name[cl]='\0';
+                }
+                strcpy(G->adjlist[numList].name, g.vexs[i].name);     //头结点的指针域置初值
+                
+                k=path[i][j];
+                d=0;
+                apath[d]=j;                 //路径上添加终点
+                while (k!=-1 && k!=i) {     //路径上添加中间点
+                    d++;
+                    apath[d]=k;
+                    k=path[i][k];
+                }
+                d++;
+                apath[d]=i;
+
+                p=(ArcNode *)malloc(sizeof(ArcNode));
+                p->adjvex=j;
+                p->length=A[i][apath[d-1]];
+                for (int cl=0; cl<MaxSize; cl++) {
+                    p->name[cl]='\0';
+                }
+                strcpy(p->name, g.vexs[apath[d-1]].name);
+ 
+                G->adjlist[numList].firstarc=p;
+                tmp=p;
+ 
+                for (s=d-2; s>=0; s--) {                            //尾插法添加 其它 中间顶点信息
+                    p=(ArcNode *)malloc(sizeof(ArcNode));
+                    p->adjvex=j;
+                    p->length=A[apath[s+1]][apath[s]];
+                    for (int cl=0; cl<MaxSize; cl++) {
+                        p->name[cl]='\0';
+                    }
+                    strcpy(p->name, g.vexs[apath[s]].name);
+                    tmp->nextarc=p;
+                    tmp=p;
+                }
+                tmp->nextarc=NULL;
+                numList++;
+            }
+        }
+    }
+    G->n=g.n;
+    G->e=g.e;
+}
 
 //检查图文件是否存在或者是否为空
 //---------------------------------------------------------------------
@@ -83,27 +167,52 @@ void infoInit(char const *fileName,char str[MaxSize])
 
 //将公园景点信息存储到文件中
 //---------------------------------------------------------------------
-/*void infoFlush(char const *fileName,MatGraph *b)
+void infoFlush(char const *fileName,AdjGraph *G)
 {
-    MatGraph *p=b;
     FILE *fp;
+    AdjGraph *p=G;
+    int m,savecount = 0;
+    
     if ((fp = fopen(fileName, "wb"))==NULL) {
         printf("Tips: 不能打开公园景点信息文件\n");
         return;
     }
-//    思路：直接写入两个景点名字，距离
-//    读取时按照链表读，二维矩阵？扫描直接读
-    for (int j=0; j<b->n; j++) {
-        for (int i=0; i<b->n; i++) {
-//            fprintf(fp, "%c",*p);
+    for (m=0; m<numList-1; m++) {
+        ArcNode *h=G->adjlist[m].firstarc;
+        fprintf(fp,"%s\t",p->adjlist[m].name);
+        while (h->nextarc!=NULL) {
+            fprintf(fp, "%s\t",h->name);
+            fprintf(fp, "%d\t",h->length);
+            h=h->nextarc;
+            savecount++;
         }
+        fprintf(fp, "%s\t",h->name);
+        fprintf(fp, "%d\n",h->length);
+        h=h->nextarc;
+        savecount++;
     }
-//    while (*p!=NULL) {
-//        p++;
-//    }
+    
+    ArcNode *h=G->adjlist[m].firstarc;
+    fprintf(fp,"%s\t",p->adjlist[m].name);
+    while (h->nextarc!=NULL) {
+        fprintf(fp, "%s\t",h->name);
+        fprintf(fp, "%d\t",h->length);
+        h=h->nextarc;
+        savecount++;
+    }
+    fprintf(fp, "%s\t",h->name);
+    fprintf(fp, "%d",h->length);
+    h=h->nextarc;
+    savecount++;
+
     fclose(fp);
+    if (savecount>0) {
+        printf("景点路径信息已存入文件中\n");
+    }
+    else
+        printf("未存入任何景点路径信息到文件中\n");
 }
-*/
+
 //读取字符串函数
 int read_line(char str[],int n)
 {
@@ -344,7 +453,8 @@ void disAllShort(MatGraph g,int A[][MaxV],int path[][MaxV])
                 }
                 d++;apath[d]=i;
                 printf("%s",g.vexs[apath[d]].name);
-                for (s=d-1; s>=0; s--) {
+                for (s=d-1; s>=0; s--)
+                {
                     printf(",%s",g.vexs[apath[s]].name);
                 }
                 printf("\t路径长度: %d\n",A[i][j]);
@@ -352,11 +462,25 @@ void disAllShort(MatGraph g,int A[][MaxV],int path[][MaxV])
         }
     }
 }
-
+/*
+int visited[MaxV]={0};
+void DFS(AdjGraph *G,int v)
+{
+    ArcNode *p;
+    visited[v]=1;
+    printf("%d",v);
+    p=G->adjlist[v].firstarc;
+    while (p!=NULL) {
+        if (visited[p->adjvex]==0) {
+            DFS(G, p->adjvex);
+        }
+        p=p->nextarc;
+    }
+}
+*/
 //Floyd Algorithm
 void Floyd(MatGraph g)
 {
-    int A[MaxV][MaxV],path[MaxV][MaxV];
     int i,j,k;
     //A和path初始化
     for (i=0; i<g.n; i++) {
@@ -386,6 +510,7 @@ int main(int argc, const char * argv[]) {
 
     MatGraph g;
     int i,j;
+    AdjGraph *G;
     
     printf("请输入景点总个数(至多50个):");
     scanf("%d",&g.n);
@@ -417,7 +542,10 @@ int main(int argc, const char * argv[]) {
 //    printf("\n");
 //    printf("\nFloyd: \n");
     Floyd(g);
-    
+    MatToList(g, A, G);
+//    DFS(G, 0);
+    printf("\n");
+    infoFlush("AllPath.dat", G);
     return 0;
    
 }
